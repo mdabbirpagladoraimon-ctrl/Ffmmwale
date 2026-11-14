@@ -139,6 +139,9 @@ def init_db():
     for col, decl in [
         ("fw_balance", "REAL DEFAULT 0"),
         ("fw_currency", "TEXT DEFAULT 'USD'"),
+        ("last_checked", "TEXT"),
+        ("check_error", "TEXT"),
+        ("days_left", "INTEGER"),
     ]:
         try:
             c.execute(f"ALTER TABLE accounts ADD COLUMN {col} {decl}")
