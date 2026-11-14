@@ -56,8 +56,10 @@
     <p class="hero-sub">PREMIUM ACCESS. HALF THE PRICE.</p>
     <div class="live-stock" id="liveStock">
       <span class="dot dot-live pulse"></span>
-      <span class="ls-label">LIVE STOCK:</span>
-      <span class="ls-count" id="stockCount">{{ stock_count }}</span>
+      <span class="ls-label">LIVE:</span>
+      <span class="ls-count" id="stockCount">{{ live_count }}</span>
+      <span class="ls-label" style="margin-left:14px">TOTAL:</span>
+      <span class="ls-count" id="totalCount">{{ stock_count }}</span>
     </div>
     <div class="hero-cta">
       <a href="{{ url_for('silver') }}" class="btn-silver">SILVER PLAN</a>
@@ -106,6 +108,25 @@
     </a>
   {% endif %}
 {% endif %}
+
+<script>
+(function(){
+  function tick(){
+    fetch('/api/live-stock', {credentials:'same-origin'})
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if(!d) return;
+        var liveEl  = document.getElementById('stockCount');
+        var totalEl = document.getElementById('totalCount');
+        if(liveEl)  liveEl.textContent  = d.live;
+        if(totalEl) totalEl.textContent = d.total;
+        if(liveEl) liveEl.classList.toggle('pulse', d.live > 0);
+      }).catch(()=>{});
+  }
+  tick();
+  setInterval(tick, 30000);
+})();
+</script>
 {% endblock %}
 
 {# TEMPLATE: store.html #}
@@ -125,6 +146,9 @@
     <div class="row"><span>Original</span><b>{{ it.original_currency or 'USD' }} {{ '%.2f'|format(it.original_price or 0) }}</b></div>
     <div class="row"><span>Our Price</span><b class="price">৳{{ '%.2f'|format(it.selling_price) }}</b></div>
     <div class="row"><span>Discount</span><b class="disc">50% OFF</b></div>
+    {% if it.days_left is not none %}
+    <div class="row"><span>Remaining</span><b>{{ it.days_left }} Days</b></div>
+    {% endif %}
     <div class="row status status-{{ it.status|lower }}">
       <span class="dot dot-{{ it.status|lower }}"></span> {{ it.status }}
     </div>
@@ -403,16 +427,22 @@
 {% block admin %}
 <h2 class="section-title">ACCOUNT STOCK</h2>
 <table class="table">
-<thead><tr><th>ID</th><th>Plan</th><th>Cat</th><th>Original</th><th>Sell</th><th>Status</th><th>Sold</th><th>Actions</th></tr></thead>
+<thead><tr><th>ID</th><th>Plan</th><th>Cat</th><th>Sell</th><th>Days</th><th>Status</th><th>Checked</th><th>Sold</th><th>Actions</th></tr></thead>
 <tbody>
 {% for r in rows %}
 <tr>
   <td>{{ r.id }}</td>
   <td>{{ r.plan_name or '—' }}</td>
   <td><span class="tag tag-{{ r.plan_category }}">{{ r.plan_category|upper }}</span></td>
-  <td>{{ r.original_currency or '' }} {{ '%.2f'|format(r.original_price or 0) }}</td>
   <td>৳{{ '%.2f'|format(r.selling_price) }}</td>
-  <td><span class="tag tag-{{ r.status|lower }}">{{ r.status }}</span></td>
+  <td class="{{ 'pos' if r.days_left and r.days_left > 3 else 'neg' if r.days_left is not none else 'muted' }}">
+    {{ r.days_left if r.days_left is not none else '—' }}
+  </td>
+  <td>
+    <span class="tag tag-{{ r.status|lower }}">{{ r.status }}</span>
+    {% if r.check_error %}<span class="muted small" title="{{ r.check_error }}"> ⚠</span>{% endif %}
+  </td>
+  <td class="muted small">{{ r.last_checked or '—' }}</td>
   <td>{{ 'YES' if r.sold else 'NO' }}</td>
   <td class="actions">
     {% if not r.sold %}
@@ -424,7 +454,7 @@
     {% else %}<span class="muted small">sold</span>{% endif %}
   </td>
 </tr>
-{% else %}<tr><td colspan="8" class="muted">no accounts</td></tr>{% endfor %}
+{% else %}<tr><td colspan="9" class="muted">no accounts</td></tr>{% endfor %}
 </tbody>
 </table>
 {% endblock %}
@@ -474,7 +504,8 @@ you@yours.com,YourPass,gold,150,bought 2026-11</pre>
 
 <p class="muted small">
   Auto-detected from first line.<br>
-  <b>Colon imports default to SILVER ৳80.</b> Change prices with Bulk Price.
+  <b>Colon imports default to SILVER ৳80.</b> Change prices with Bulk Price.<br>
+  <b>Scheduler auto-checks every 20 min</b> — status, wallet, days-left update automatically.
 </p>
 {% endblock %}
 
@@ -521,6 +552,13 @@ you@yours.com,YourPass,gold,150,bought 2026-11</pre>
   <textarea name="notes" rows="3">{{ row.notes or '' }}</textarea>
   <button class="btn-primary">Save</button>
 </form>
+
+<div style="margin-top:24px" class="muted small">
+  <div>Last checked: <b>{{ row.last_checked or '—' }}</b></div>
+  <div>Days left: <b>{{ row.days_left if row.days_left is not none else '—' }}</b></div>
+  <div>Wallet: <b>{{ row.fw_currency or 'USD' }} {{ '%.2f'|format(row.fw_balance or 0) }}</b></div>
+  {% if row.check_error %}<div>Last error: <b>{{ row.check_error }}</b></div>{% endif %}
+</div>
 {% endblock %}
 
 {# TEMPLATE: admin_users.html #}
