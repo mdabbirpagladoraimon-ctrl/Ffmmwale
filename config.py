@@ -20,3 +20,8 @@ class Config:
         "gold":   {"original_price": 22.0, "original_currency": "USD", "selling_price": 160.0},
         "silver": {"original_price": 11.0, "original_currency": "USD", "selling_price": 80.0},
     }
+
+    CHECKER_API_BASE = os.getenv(
+        "CHECKER_API_BASE", "https://filewalecheckerapi8.onrender.com"
+    )
+    CHECK_INTERVAL_SECONDS = int(os.getenv("CHECK_INTERVAL_SECONDS", "1200"))
