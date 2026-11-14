@@ -20,6 +20,7 @@ from importer import (
     parse_colon_text, import_colon_rows,
     parse_pipe_text, import_pipe_rows, is_pipe_line,
 )
+import scheduler
 
 
 logging.basicConfig(
@@ -59,6 +60,9 @@ ensure_admin(
     Config.ADMIN_USERNAME, Config.ADMIN_PASSWORD,
     aliases=("ZYLECO", "ZYELEO"),
 )
+
+if os.environ.get("RUN_SCHEDULER", "1") == "1":
+    scheduler.start()
 
 
 @app.route("/static.css")
@@ -142,9 +146,17 @@ def admin_required(f):
 @app.route("/")
 def home():
     c = get_db()
-    stock = c.execute("SELECT COUNT(*) c FROM accounts WHERE sold=0").fetchone()["c"]
-    c.close()
-    return render_template("home.html", stock_count=stock)
+    try:
+        total = c.execute(
+            "SELECT COUNT(*) c FROM accounts WHERE sold=0"
+        ).fetchone()["c"]
+        live = c.execute(
+            "SELECT COUNT(*) c FROM accounts "
+            "WHERE sold=0 AND status='LIVE'"
+        ).fetchone()["c"]
+    finally:
+        c.close()
+    return render_template("home.html", stock_count=total, live_count=live)
 
 
 @app.route("/store")
@@ -866,10 +878,34 @@ def admin_sold():
 @app.route("/api/live-stock")
 def live_stock():
     c = get_db()
-    total = c.execute("SELECT COUNT(*) c FROM accounts WHERE sold=0").fetchone()["c"]
-    live = c.execute("SELECT COUNT(*) c FROM accounts WHERE sold=0 AND status='LIVE'").fetchone()["c"]
-    c.close()
-    return jsonify({"total": total, "live": live})
+    try:
+        total = c.execute(
+            "SELECT COUNT(*) c FROM accounts WHERE sold=0"
+        ).fetchone()["c"]
+        live = c.execute(
+            "SELECT COUNT(*) c FROM accounts "
+            "WHERE sold=0 AND status='LIVE'"
+        ).fetchone()["c"]
+        expired = c.execute(
+            "SELECT COUNT(*) c FROM accounts "
+            "WHERE sold=0 AND status='EXPIRED'"
+        ).fetchone()["c"]
+        offline = c.execute(
+            "SELECT COUNT(*) c FROM accounts "
+            "WHERE sold=0 AND status='OFFLINE'"
+        ).fetchone()["c"]
+        last = c.execute(
+            "SELECT MAX(last_checked) m FROM accounts WHERE sold=0"
+        ).fetchone()["m"]
+    finally:
+        c.close()
+    return jsonify({
+        "total": total,
+        "live": live,
+        "expired": expired,
+        "offline": offline,
+        "last_checked": last,
+    })
 
 
 @app.errorhandler(400)
